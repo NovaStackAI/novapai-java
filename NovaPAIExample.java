@@ -1,6 +1,6 @@
 // NovaPAI Java SDK Example
 // Maven: add openai-java dependency
-// Docs: https://api.novapai.ai
+// Docs: https://novapai.ai
 
 // pom.xml dependency:
 // <dependency>
@@ -14,6 +14,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.*;
 
 import java.util.List;
+import java.util.Map;
 
 public class NovaPAIExample {
 
@@ -28,6 +29,12 @@ public class NovaPAIExample {
 
         // ── Streaming ───────────────────────────────────────
         streamChat(client);
+
+        // ── Function Calling ────────────────────────────────
+        functionCalling(client);
+
+        // ── JSON Mode ───────────────────────────────────────
+        jsonMode(client);
     }
 
     static void basicChat(OpenAIClient client) {
@@ -70,5 +77,64 @@ public class NovaPAIExample {
                         .forEach(System.out::print)
         );
         System.out.println();
+    }
+
+    static void functionCalling(OpenAIClient client) {
+        ChatCompletion response = client.chat().completions().create(
+                ChatCompletionCreateParams.builder()
+                        .model("deepseek-v4-pro")
+                        .messages(List.of(
+                                ChatCompletionMessageParam.ofUser(
+                                        ChatCompletionUserMessageParam.builder()
+                                                .content("What's the weather in Tokyo?")
+                                                .build()
+                                )
+                        ))
+                        .tools(List.of(
+                                ChatCompletionTool.builder()
+                                        .function(
+                                                FunctionDefinition.builder()
+                                                        .name("get_weather")
+                                                        .description("Get current weather for a city")
+                                                        .parameters(Map.of(
+                                                                "type", "object",
+                                                                "properties", Map.of(
+                                                                        "city", Map.of("type", "string", "description", "City name")
+                                                                ),
+                                                                "required", List.of("city")
+                                                        ))
+                                                        .build()
+                                        )
+                                        .build()
+                        ))
+                        .build()
+        );
+
+        ChatCompletionMessageToolCall tc = response.choices().get(0).message().toolCalls().get().get(0);
+        System.out.println("Function: " + tc.function().name());
+        System.out.println("Args: " + tc.function().arguments());
+    }
+
+    static void jsonMode(OpenAIClient client) {
+        ChatCompletion response = client.chat().completions().create(
+                ChatCompletionCreateParams.builder()
+                        .model("deepseek-v4-pro")
+                        .messages(List.of(
+                                ChatCompletionMessageParam.ofSystem(
+                                        ChatCompletionSystemMessageParam.builder()
+                                                .content("Extract company info as JSON.")
+                                                .build()
+                                ),
+                                ChatCompletionMessageParam.ofUser(
+                                        ChatCompletionUserMessageParam.builder()
+                                                .content("Apple Inc. is based in Cupertino, founded in 1976.")
+                                                .build()
+                                )
+                        ))
+                        .responseFormat(ChatCompletionResponseFormat.ofJsonObject())
+                        .build()
+        );
+
+        System.out.println(response.choices().get(0).message().content().orElse(""));
     }
 }
